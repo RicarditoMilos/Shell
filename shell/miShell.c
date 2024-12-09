@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <dirent.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <fcntl.h> // Para operaciones con archivos
@@ -25,6 +26,7 @@ void parse_command(char *input, char **args) {
     args[i] = NULL; // Terminar la lista de argumentos
 }
 
+//------------------------------------------------------------------------------//
 // Función para copiar archivos
 void copiar(const char *origen, const char *destino) {
     int src_fd, dest_fd;
@@ -67,7 +69,7 @@ void copiar(const char *origen, const char *destino) {
 
     printf("Archivo copiado de '%s' a '%s'.\n", origen, destino);
 }
-
+//---------------------------------------------------------------------------------------//
 void mover(const char *origen, const char *destino) {
     if (rename(origen, destino) == 0) {
         printf("'%s' se ha movido a '%s' correctamente.\n", origen, destino);
@@ -75,7 +77,36 @@ void mover(const char *origen, const char *destino) {
         perror("Error al mover");
     }
 }
+//--------------------------------------------------------------------------------------//
+void renombrar(const char *origen, const char *nuevo_nombre) {
+    if (rename(origen, nuevo_nombre) == 0) {
+        printf("'%s' se ha renombrado a '%s' correctamente.\n", origen, nuevo_nombre);
+    } else {
+        perror("Error al renombrar");
+    }
+}
+//-------------------------------------------------------------------------------------//
+void listar(const char *directorio) {
+    DIR *dir;
+    struct dirent *entrada;
 
+    // Abrir el directorio
+    dir = opendir(directorio);
+    if (dir == NULL) {
+        perror("Error al abrir el directorio");
+        return;
+    }
+
+    printf("Contenido de '%s':\n", directorio);
+    while ((entrada = readdir(dir)) != NULL) {
+        printf("%s\n", entrada->d_name);
+    }
+
+    closedir(dir);
+}
+
+
+//------------------------------------------------------------------------------------//
 // Función principal del loop de la shell
 void shell_loop() {
     char input[MAX_INPUT];
@@ -117,13 +148,42 @@ void shell_loop() {
             continue;
         }
 
-        if(strcmp(args[0],"mover") == 0){
+        if(strcmp(args[0],"mover") == 0){ //Si el usuario escribef "mover", ejecutar 
              if (args[1] == NULL || args[2] == NULL) {
                 printf("Uso:<archivo_o_directorio_origen> <destino>\n");
             } else {
                 mover(args[1], args[2]);
             }
         }
+
+	if (strcmp(args[0], "renombrar") == 0) {
+            if (args[1] == NULL || args[2] == NULL) {
+                fprintf(stderr, "Uso: renombrar <archivo_o_directorio_origen> <nuevo_nombre>\n");
+            } else {
+                renombrar(args[1], args[2]);
+            }
+            continue;
+        }
+
+	if (strcmp(args[0], "listar") == 0) {
+    if (args[1] == NULL) {
+        listar("."); //Listar el actual si no se especifica
+    } else {
+        listar(args[1]);
+    }
+    continue;
+}
+
+
+
+
+
+
+
+
+
+
+
     }
 }
 

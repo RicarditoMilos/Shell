@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/types.h>
@@ -9,8 +10,9 @@
 #include <fcntl.h> // Para operaciones con archivos
 #include <pwd.h> //para funciones que accedan a informacion del usuario, en este caso, las contrasegnas
 #include <grp.h> //lo mismo que pwd pero con grupos
+#include <errno.h>
 
-// Tamaño máximo para los comans
+// Tamano maximo para los comdos
 #define MAX_INPUT 1024
 #define MAX_ARGS 64
 #define BUFFER_SIZE 4096
@@ -40,20 +42,18 @@ void parse_command(char *input, char **args) {
 }
 
 //------------------------------------------------------------------------------//
-// Función para copiar archivos
-void copiar(const char *origen, const char *destino) {
+// Función para copiar archivoso directorios
+void copiar_archivo(const char *origen, const char *destino) {
     int src_fd, dest_fd;
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read, bytes_written;
 
-    // Abrir archivo de origen
     src_fd = open(origen, O_RDONLY);
     if (src_fd < 0) {
         perror("Error al abrir el archivo de origen");
         return;
     }
 
-    // Crear archivo de destino
     dest_fd = open(destino, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (dest_fd < 0) {
         perror("Error al crear el archivo de destino");
@@ -61,7 +61,6 @@ void copiar(const char *origen, const char *destino) {
         return;
     }
 
-    // Copiar contenido
     while ((bytes_read = read(src_fd, buffer, BUFFER_SIZE)) > 0) {
         bytes_written = write(dest_fd, buffer, bytes_read);
         if (bytes_written != bytes_read) {
@@ -76,19 +75,113 @@ void copiar(const char *origen, const char *destino) {
         perror("Error al leer el archivo de origen");
     }
 
-    // Cerrar archivos
     close(src_fd);
     close(dest_fd);
 
     printf("Archivo copiado de '%s' a '%s'.\n", origen, destino);
 }
-//---------------------------------------------------------------------------------------//
-//Funcion para mover archivos
-void mover(const char *origen, const char *destino) {
-    if (rename(origen, destino) == 0) {
-        printf("'%s' se ha movido a '%s' correctamente.\n", origen, destino);
+
+// Función para copiar un directorio de forma recursiva
+void copiar_directorio(const char *origen, const char *destino) {
+    DIR *dir;
+    struct dirent *entry;
+    struct stat statbuf;
+    char src_path[PATH_MAX];
+    char dest_path[PATH_MAX];
+
+    if (mkdir(destino, 0755) < 0 && errno != EEXIST) {
+        perror("Error al crear el directorio de destino");
+        return;
+    }
+
+    dir = opendir(origen);
+    if (dir == NULL) {
+        perror("Error al abrir el directorio de origen");
+        return;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+
+        snprintf(src_path, sizeof(src_path), "%s/%s", origen, entry->d_name);
+        snprintf(dest_path, sizeof(dest_path), "%s/%s", destino, entry->d_name);
+
+        if (stat(src_path, &statbuf) == 0) {
+            if (S_ISDIR(statbuf.st_mode)) {
+                // Es un directorio: copiar recursivamente
+                copiar_directorio(src_path, dest_path);
+            } else if (S_ISREG(statbuf.st_mode)) {
+                // Es un archivo: copiar
+                copiar_archivo(src_path, dest_path);
+            }
+        }
+    }
+
+    closedir(dir);
+    printf("Directorio copiado de '%s' a '%s'.\n", origen, destino);
+}
+
+// Función para decidir si se copia un archvo o un directorio
+void copiar(const char *origen, const char *destino) {
+    struct stat statbuf;
+
+    if (stat(origen, &statbuf) < 0) {
+        perror("Error al obtener información del origen");
+        return;
+    }
+
+    if (S_ISDIR(statbuf.st_mode)) {
+        // Es un directorio
+        copiar_directorio(origen, destino);
+    } else if (S_ISREG(statbuf.st_mode)) {
+        // Es un archivo
+        copiar_archivo(origen, destino);
     } else {
-        perror("Error al mover");
+        printf("El origen '%s' no es un archivo ni un directorio válido.\n", origen);
+    }
+}
+//---------------------------------------------------------------------------------------//
+//Funcion de ir
+void cambiar_directorio(const char *ruta) {
+    // Intentar cambiar al directorio especificado
+    if (chdir(ruta) == 0) {
+        char cwd[PATH_MAX];
+
+        // Obtener y mostrar el nuevo directorio actual
+        if (getcwd(cwd, sizeof(cwd)) != NULL) {
+            printf("Directorio cambiado a: %s\n", cwd);
+        } else {
+            perror("Error al obtener el directorio actual");
+        }
+    } else {
+        perror("Error al cambiar de directorio");
+    }
+}
+
+//---------------------------------------------------------------------------------------//
+//Funcion para mover archivos o directorio
+void mover(const char *origen, const char *destino) {
+    struct stat statbuf;
+
+    // Verificar si el destino es un directorio
+    if (stat(destino, &statbuf) == 0 && S_ISDIR(statbuf.st_mode)) {
+        char nuevo_destino[PATH_MAX];
+        snprintf(nuevo_destino, sizeof(nuevo_destino), "%s/%s", destino, strrchr(origen, '/') ? strrchr(origen, '/') + 1 : origen);
+
+        if (rename(origen, nuevo_destino) == 0) {
+            printf("'%s' se ha movido a '%s' correctamente.\n", origen, nuevo_destino);
+        } else {
+            perror("Error al mover");
+        }
+    } else {
+        // Si el destino no es un directorio, mover directamente
+        if (rename(origen, destino) == 0) {
+            printf("'%s' se ha movido a '%s' correctamente.\n", origen, destino);
+        } else {
+            perror("Error al mover");
+        }
     }
 }
 //--------------------------------------------------------------------------------------//
@@ -371,9 +464,38 @@ if (strcmp(args[0], "usuario") == 0) {
     continue;
 }
 
+//Llamada a funcion ir
+if (strcmp(args[0], "ir") == 0) {
+    if (args[1] == NULL) {
+        printf("Uso: ir <ruta>\n");
+    } else {
+        cambiar_directorio(args[1]);
+    }
+    continue;
+}
 
-
-
+//Llamada para vim
+if (strcmp(args[0], "vim") == 0) {
+    if (args[1] == NULL) {
+        printf("Uso: vim <nombre_archivo>\n");
+    } else {
+        // Crear un proceso hijo para ejecutar vim
+        pid_t pid = fork();
+        if (pid == 0) {
+            // Proceso hijo: ejecutar vim
+            if (execlp("vim", "vim", args[1], NULL) == -1) {
+                perror("Error al ejecutar vim");
+                exit(EXIT_FAILURE);
+            }
+        } else if (pid > 0) {
+            // Proceso padre: esperar al hijo
+            wait(NULL);
+        } else {
+            perror("Error al crear proceso");
+        }
+    }
+    continue;
+}
 
 
 

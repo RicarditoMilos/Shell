@@ -17,7 +17,8 @@
 #define MAX_ARGS 64
 #define BUFFER_SIZE 4096
 #define USER_DATA_FILE "/usr/local/bin/usuarios_data.txt" //Aca se guardan los datos del ususario
-
+#define HISTORIAL_FILE "historial.log" // Archivo para el historial
+#define ERROR_LOG_FILE "/var/log/shell/sistema_error.log" // Archivo para errores
 // Estructura para datos de usuario
 typedef struct {
     char nombre[64];

@@ -408,6 +408,7 @@ void shell_loop() {
 
         // Si el usuario escribe "salir", terminar la shell
         if (strcmp(args[0], "salir") == 0) {
+            registrar_historial(args[0]);
             printf("Saliendo de la shell.\n");
             break;
         }
@@ -415,8 +416,10 @@ void shell_loop() {
         // Si el usuario escribe "copiar"
         if (strcmp(args[0], "copiar") == 0) {
             if (args[1] == NULL || args[2] == NULL) {
+                registrar_historial(args[1]);
                 printf("Uso: copiar <origen> <destino>\n");
             } else {
+                registrar_historial(args[0]);
                 copiar(args[1], args[2]);
             }
             continue;
@@ -426,6 +429,7 @@ void shell_loop() {
              if (args[1] == NULL || args[2] == NULL) {
                 printf("Uso:<archivo_o_directorio_origen> <destino>\n");
             } else {
+                registrar_historial(args[0]);
                 mover(args[1], args[2]);
             }
         }
@@ -436,6 +440,7 @@ void shell_loop() {
             if (args[1] == NULL || args[2] == NULL) {
                 fprintf(stderr, "Uso: renombrar <archivo_o_directorio_origen> <nuevo_nombre>\n");
             } else {
+                registrar_historial(args[0]);
                 renombrar(args[1], args[2]);
             }
             continue;
@@ -447,6 +452,7 @@ void shell_loop() {
     if (args[1] == NULL) {
         listar("."); //Listar el actual si no se especifica
     } else {
+        registrar_historial(args[0]);
         listar(args[1]);
     }
     continue;
@@ -457,6 +463,7 @@ if (strcmp(args[0], "creardir") == 0) {
     if (args[1] == NULL) {
         printf("Uso: creardir <nombre_directorio>\n");
     } else {
+        registrar_historial(args[0]);
         creardir(args[1]);
     }
     continue;
@@ -467,6 +474,7 @@ if (strcmp(args[0], "permisos") == 0) {
     if (args[1] == NULL || args[2] == NULL) {
         printf("Uso: permisos <modo_octal> <archivo>\n");
     } else {
+        registrar_historial(args[0]);
         permisos(args[1], args[2]);
     }
     continue;
@@ -478,6 +486,7 @@ if (strcmp(args[0], "propietario") == 0) {
     if (args[1] == NULL || args[2] == NULL || args[3] == NULL) {
         printf("Uso: propietario <usuario> <grupo> <archivo>\n");
     } else {
+        registrar_historial(args[0]);
         propietario(args[1], args[2], args[3]);
     }
     continue;
@@ -485,6 +494,7 @@ if (strcmp(args[0], "propietario") == 0) {
 
 // Llamada a funcion para cambiar la contrasena
 if (strcmp(args[0], "contraseña") == 0) {
+    registrar_historial(args[0]);
     cambiar_contrasena();
     continue;
 }
@@ -492,6 +502,7 @@ if (strcmp(args[0], "contraseña") == 0) {
 //llamada a funcion para crear usuario
  
 if (strcmp(args[0], "usuario") == 0) {
+    registrar_historial(args[0]);
     if (args[1] == NULL || args[2] == NULL || args[3] == NULL) {
         printf("Uso: usuario <nombre> <horario> <ips>\n");
     } else {
@@ -502,6 +513,7 @@ if (strcmp(args[0], "usuario") == 0) {
 
 //Llamada a funcion ir
 if (strcmp(args[0], "ir") == 0) {
+    registrar_historial(args[0]);
     if (args[1] == NULL) {
         printf("Uso: ir <ruta>\n");
     } else {
@@ -512,6 +524,7 @@ if (strcmp(args[0], "ir") == 0) {
 
 //Llamada para vim
 if (strcmp(args[0], "vim") == 0) {
+    registrar_historial(args[0]);
     if (args[1] == NULL) {
         printf("Uso: vim <nombre_archivo>\n");
     } else {

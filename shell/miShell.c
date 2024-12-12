@@ -394,7 +394,7 @@ void gestionar_demonio(const char *nombre_demonio, const char *accion) {
         pid_t pid = fork();
         if (pid == 0) {
             // Proceso hijo para gestionar demonio
-            char *argv[] = {"/usr/bin/systemctl", accion, (char *)nombre_demonio, NULL};
+            const char *argv[] = {"/usr/bin/systemctl", accion, nombre_demonio, NULL};
             execvp(argv[0], argv);
             perror("Error al gestionar el demonio");
             exit(EXIT_FAILURE);

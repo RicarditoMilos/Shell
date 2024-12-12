@@ -26,6 +26,42 @@ typedef struct {
     char ips[128];     // Ejemplo: "192.168.1.1,localhost"
 } Usuario;
 
+// Funcion para obtener el timestamp actual
+void obtener_timestamp(char *buffer, size_t size) {
+    time_t now = time(NULL);
+    struct tm *t = localtime(&now);
+    strftime(buffer, size, "%Y-%m-%d %H:%M:%S", t);
+}
+
+// Funcion para registrar en el historial
+void registrar_historial(const char *comando) {
+    FILE *archivo = fopen(HISTORIAL_FILE, "a");
+    if (archivo == NULL) {
+        perror("Error al abrir historial.log");
+        return;
+    }
+
+    char timestamp[64];
+    obtener_timestamp(timestamp, sizeof(timestamp));
+
+    fprintf(archivo, "%s: %s\n", timestamp, comando);
+    fclose(archivo);
+}
+
+// Funcion para registrar errores
+void registrar_error(const char *mensaje) {
+    FILE *archivo = fopen(ERROR_LOG_FILE, "a");
+    if (archivo == NULL) {
+        perror("Error al abrir sistema_error.log");
+        return;
+    }
+
+    char timestamp[64];
+    obtener_timestamp(timestamp, sizeof(timestamp));
+    perror(mensaje)
+    fprintf(archivo, "%s: ERROR: %s\n", timestamp, mensaje);
+    fclose(archivo);
+}
 
 // Función para dividir el comando en argumentos
 void parse_command(char *input, char **args) {
@@ -50,13 +86,13 @@ void copiar_archivo(const char *origen, const char *destino) {
 
     src_fd = open(origen, O_RDONLY);
     if (src_fd < 0) {
-        perror("Error al abrir el archivo de origen");
+        registrar_error("Error al abrir el archivo de origen");
         return;
     }
 
     dest_fd = open(destino, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (dest_fd < 0) {
-        perror("Error al crear el archivo de destino");
+        registrar_error("Error al crear el archivo de destino");
         close(src_fd);
         return;
     }
@@ -64,7 +100,7 @@ void copiar_archivo(const char *origen, const char *destino) {
     while ((bytes_read = read(src_fd, buffer, BUFFER_SIZE)) > 0) {
         bytes_written = write(dest_fd, buffer, bytes_read);
         if (bytes_written != bytes_read) {
-            perror("Error al escribir en el archivo de destino");
+            registrar_error("Error al escribir en el archivo de destino");
             close(src_fd);
             close(dest_fd);
             return;
@@ -72,7 +108,7 @@ void copiar_archivo(const char *origen, const char *destino) {
     }
 
     if (bytes_read < 0) {
-        perror("Error al leer el archivo de origen");
+        registrar_error("Error al leer el archivo de origen");
     }
 
     close(src_fd);
@@ -90,13 +126,13 @@ void copiar_directorio(const char *origen, const char *destino) {
     char dest_path[PATH_MAX];
 
     if (mkdir(destino, 0755) < 0 && errno != EEXIST) {
-        perror("Error al crear el directorio de destino");
+        registrar_error("Error al crear el directorio de destino");
         return;
     }
 
     dir = opendir(origen);
     if (dir == NULL) {
-        perror("Error al abrir el directorio de origen");
+        registrar_error("Error al abrir el directorio de origen");
         return;
     }
 
@@ -128,7 +164,7 @@ void copiar(const char *origen, const char *destino) {
     struct stat statbuf;
 
     if (stat(origen, &statbuf) < 0) {
-        perror("Error al obtener información del origen");
+        registrar_error("Error al obtener información del origen");
         return;
     }
 
@@ -153,10 +189,10 @@ void cambiar_directorio(const char *ruta) {
         if (getcwd(cwd, sizeof(cwd)) != NULL) {
             printf("Directorio cambiado a: %s\n", cwd);
         } else {
-            perror("Error al obtener el directorio actual");
+            registrar_error("Error al obtener el directorio actual");
         }
     } else {
-        perror("Error al cambiar de directorio");
+        registrar_error("Error al cambiar de directorio");
     }
 }
 
@@ -173,14 +209,14 @@ void mover(const char *origen, const char *destino) {
         if (rename(origen, nuevo_destino) == 0) {
             printf("'%s' se ha movido a '%s' correctamente.\n", origen, nuevo_destino);
         } else {
-            perror("Error al mover");
+            registrar_error("Error al mover");
         }
     } else {
         // Si el destino no es un directorio, mover directamente
         if (rename(origen, destino) == 0) {
             printf("'%s' se ha movido a '%s' correctamente.\n", origen, destino);
         } else {
-            perror("Error al mover");
+            registrar_error("Error al mover");
         }
     }
 }
@@ -190,7 +226,7 @@ void renombrar(const char *origen, const char *nuevo_nombre) {
     if (rename(origen, nuevo_nombre) == 0) {
         printf("'%s' se ha renombrado a '%s' correctamente.\n", origen, nuevo_nombre);
     } else {
-        perror("Error al renombrar");
+        registrar_error("Error al renombrar");
     }
 }
 //-------------------------------------------------------------------------------------//
@@ -202,7 +238,7 @@ void listar(const char *directorio) {
     // Abrir el directorio
     dir = opendir(directorio);
     if (dir == NULL) {
-        perror("Error al abrir el directorio");
+        registrar_error("Error al abrir el directorio");
         return;
     }
 
@@ -222,7 +258,7 @@ void creardir(const char *nombre_directorio) {
     if (mkdir(nombre_directorio, 0755) == 0) {
         printf("Directorio '%s' creado exitosamente.\n", nombre_directorio);
     } else {
-        perror("Error al crear el directorio");
+        registrar_error("Error al crear el directorio");
     }
 }
 
@@ -233,7 +269,7 @@ void ir(const char *ruta) {
     if (chdir(ruta) == 0) {
         printf("Directorio cambiado a '%s'\n", ruta);
     } else {
-        perror("Error al cambiar de directorio");
+        registrar_error("Error al cambiar de directorio");
     }
 }
 
@@ -247,7 +283,7 @@ void permisos(const char *modo, const char *archivo) {
     if (chmod(archivo, permisos) == 0) {
         printf("Permisos de '%s' cambiados a %s\n", archivo, modo);
     } else {
-        perror("Error al cambiar permisos");
+        registrar_error("Error al cambiar permisos");
     }
 }
 
@@ -279,7 +315,7 @@ void propietario(const char *usuario, const char *grupo, const char *archivo) {
         printf("Propietario de '%s' cambiado a usuario: '%s', grupo: '%s'\n",
                archivo, usuario, grupo ? grupo : "(sin cambios)");
     } else {
-        perror("Error al cambiar propietario");
+        registrar_error("Error al cambiar propietario");
     }
 }
 //----------------------------------------------------------------------------------//
@@ -329,7 +365,7 @@ void agregar_usuario(const char *nombre, const char *horario, const char *ips) {
     // Guardar los datos del usuario en el archivo
     archivo = fopen(USER_DATA_FILE, "a");
     if (archivo == NULL) {
-        perror("Error al abrir el archivo de datos de usuarios");
+        registrar_error("Error al abrir el archivo de datos de usuarios");
         return;
     }
 
@@ -484,14 +520,14 @@ if (strcmp(args[0], "vim") == 0) {
         if (pid == 0) {
             // Proceso hijo: ejecutar vim
             if (execlp("vim", "vim", args[1], NULL) == -1) {
-                perror("Error al ejecutar vim");
+                registrar_error("Error al ejecutar vim");
                 exit(EXIT_FAILURE);
             }
         } else if (pid > 0) {
             // Proceso padre: esperar al hijo
             wait(NULL);
         } else {
-            perror("Error al crear proceso");
+            registrar_error("Error al crear proceso");
         }
     }
     continue;
@@ -506,6 +542,12 @@ if (strcmp(args[0], "vim") == 0) {
 int main() {
     // Iniciar la shell
     printf("Bienvenido a mi_shell. Escribe 'salir' para terminar.\n");
+    // Crear el directorio para los logs de error si no existe
+    struct stat st;
+    if (stat("/var/log/shell", &st) == -1) {
+        mkdir("/var/log/shell", 0755);
+    }
+
     shell_loop();
     return 0;
 }

@@ -11,8 +11,10 @@
 #include <pwd.h> //para funciones que accedan a informacion del usuario, en este caso, las contrasegnas
 #include <grp.h> //lo mismo que pwd pero con grupos
 #include <errno.h>
+#include <time.h> // Para timestamps
 
 // Tamano maximo para los comdos
+#undef MAX_INPUT // Eliminar la definición previa si existe
 #define MAX_INPUT 1024
 #define MAX_ARGS 64
 #define BUFFER_SIZE 4096
@@ -31,7 +33,11 @@ typedef struct {
 void obtener_timestamp(char *buffer, size_t size) {
     time_t now = time(NULL);
     struct tm *t = localtime(&now);
-    strftime(buffer, size, "%Y-%m-%d %H:%M:%S", t);
+    if (t != NULL) {
+        strftime(buffer, size, "%Y-%m-%d %H:%M:%S", t);
+    } else {
+        snprintf(buffer, size, "Timestamp no disponible");
+    }
 }
 
 // Funcion para registrar en el historial

@@ -58,7 +58,7 @@ void registrar_error(const char *mensaje) {
 
     char timestamp[64];
     obtener_timestamp(timestamp, sizeof(timestamp));
-    perror(mensaje)
+    perror(mensaje);
     fprintf(archivo, "%s: ERROR: %s\n", timestamp, mensaje);
     fclose(archivo);
 }

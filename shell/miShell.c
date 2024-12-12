@@ -457,6 +457,7 @@ void shell_loop() {
 	//Funcion ls
 	if (strcmp(args[0], "listar") == 0) {
     if (args[1] == NULL) {
+        registrar_historial(args[0]);
         listar("."); //Listar el actual si no se especifica
     } else {
         registrar_historial(args[0]);

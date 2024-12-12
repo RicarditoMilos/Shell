@@ -387,28 +387,73 @@ void agregar_usuario(const char *nombre, const char *horario, const char *ips) {
            nombre, horario, ips);
 }
 //------------------------------------------------------------------------------//
-// Función para levantar y apagar demonios
-void gestionar_demonio(const char *nombre_demonio, const char *accion) {
-    if (strcmp(accion, "iniciar") == 0 || strcmp(accion, "detener") == 0) {
-        printf("Intentando %s el demonio '%s'\n", accion, nombre_demonio);
-        pid_t pid = fork();
-        if (pid == 0) {
-            // Proceso hijo para gestionar demonio
-            const char *argv[] = {"/usr/bin/systemctl", accion, nombre_demonio, NULL};
-            execvp(argv[0], (char * const *)argv);
-            perror("Error al gestionar el demonio");
+// Funciónes para levantar y apagar demonios
+void levantar_demonio(const char *nombre_demonio, const char *ruta_binario) {
+    printf("Intentando iniciar el demonio '%s'\n", nombre_demonio);
+
+    pid_t pid = fork();
+    if (pid == 0) {
+        // Proceso hijo se convierte en demonio
+        if (setsid() == -1) {
+            perror("Error al crear sesión de demonio");
             exit(EXIT_FAILURE);
-        } else if (pid > 0) {
-            // Proceso padre espera
-            waitpid(pid, NULL, 0);
-            printf("Demonio '%s' %s con éxito.\n", nombre_demonio, accion);
-        } else {
-            registrar_error("Error al gestionar demonio");
         }
+
+        // Redirigir entradas/salidas a /dev/null
+        freopen("/dev/null", "r", stdin);
+        freopen("/dev/null", "w", stdout);
+        freopen("/dev/null", "w", stderr);
+
+        // Ejecutar el binario del demonio
+        execl(ruta_binario, ruta_binario, (char *)NULL);
+        perror("Error al ejecutar el demonio");
+        exit(EXIT_FAILURE);
+    } else if (pid > 0) {
+        // Proceso padre guarda el PID del demonio
+        char pid_path[128];
+        snprintf(pid_path, sizeof(pid_path), "/var/run/%s.pid", nombre_demonio);
+        FILE *pid_file = fopen(pid_path, "w");
+        if (pid_file == NULL) {
+            perror("Error al guardar el archivo PID");
+            return;
+        }
+        fprintf(pid_file, "%d\n", pid);
+        fclose(pid_file);
+        printf("Demonio '%s' iniciado con PID %d\n", nombre_demonio, pid);
     } else {
-        printf("Acción no válida: use 'iniciar' o 'detener'.\n");
+        perror("Error al crear proceso para el demonio");
     }
 }
+
+void apagar_demonio(const char *nombre_demonio) {
+    printf("Intentando detener el demonio '%s'\n", nombre_demonio);
+
+    char pid_path[128];
+    snprintf(pid_path, sizeof(pid_path), "/var/run/%s.pid", nombre_demonio);
+
+    FILE *pid_file = fopen(pid_path, "r");
+    if (pid_file == NULL) {
+        perror("Error al leer el archivo PID");
+        return;
+    }
+
+    pid_t pid;
+    if (fscanf(pid_file, "%d", &pid) != 1) {
+        perror("Error al leer PID del archivo");
+        fclose(pid_file);
+        return;
+    }
+    fclose(pid_file);
+
+    if (kill(pid, SIGTERM) == 0) {
+        printf("Demonio '%s' detenido con éxito\n", nombre_demonio);
+        remove(pid_path); // Eliminar el archivo PID
+    } else {
+        perror("Error al detener el demonio");
+    }
+}
+
+
 
 //------------------------------------------------------------------------------//
 // Función para ejecutar comandos genéricos
@@ -589,16 +634,27 @@ if (strcmp(args[0], "contraseña") == 0) {
     cambiar_contrasena();
     continue;
 }
-// Llamada a función para gestionar demonios
-if (strcmp(args[0], "gestionar_demonio") == 0) {
+// Llamadas a función para gestionar demonios
+if (strcmp(args[0], "levantar_demonio") == 0) {
     if (args[1] == NULL || args[2] == NULL) {
-        printf("Uso: gestionar_demonio <nombre_demonio> <accion>\n");
+        printf("Uso: levantar_demonio <nombre_demonio> <ruta_binario>\n");
     } else {
         registrar_historial(args[0]);
-        gestionar_demonio(args[1], args[2]); // args[1] es el nombre del demonio, args[2] es la acción
+        levantar_demonio(args[1], args[2]);
     }
     continue;
 }
+
+if (strcmp(args[0], "apagar_demonio") == 0) {
+    if (args[1] == NULL) {
+        printf("Uso: apagar_demonio <nombre_demonio>\n");
+    } else {
+        registrar_historial(args[0]);
+        apagar_demonio(args[1]);
+    }
+    continue;
+}
+
 
 // Llamada a función para ejecutar comandos genéricos
 if (strcmp(args[0], "ejecutar") == 0) {

@@ -386,6 +386,89 @@ void agregar_usuario(const char *nombre, const char *horario, const char *ips) {
     printf("Usuario '%s' creado exitosamente con horario '%s' y acceso desde '%s'.\n",
            nombre, horario, ips);
 }
+//------------------------------------------------------------------------------//
+// Función para levantar y apagar demonios
+void gestionar_demonio(const char *nombre_demonio, const char *accion) {
+    if (strcmp(accion, "iniciar") == 0 || strcmp(accion, "detener") == 0) {
+        printf("Intentando %s el demonio '%s'\n", accion, nombre_demonio);
+        pid_t pid = fork();
+        if (pid == 0) {
+            // Proceso hijo para gestionar demonio
+            char *argv[] = {"/usr/bin/systemctl", accion, (char *)nombre_demonio, NULL};
+            execvp(argv[0], argv);
+            perror("Error al gestionar el demonio");
+            exit(EXIT_FAILURE);
+        } else if (pid > 0) {
+            // Proceso padre espera
+            waitpid(pid, NULL, 0);
+            printf("Demonio '%s' %s con éxito.\n", nombre_demonio, accion);
+        } else {
+            registrar_error("Error al gestionar demonio");
+        }
+    } else {
+        printf("Acción no válida: use 'iniciar' o 'detener'.\n");
+    }
+}
+
+//------------------------------------------------------------------------------//
+// Función para ejecutar comandos genéricos
+void ejecutar_comando(const char *comando) {
+    pid_t pid = fork();
+    if (pid == 0) {
+        // Proceso hijo para ejecutar el comando
+        char *argv[] = {"/bin/sh", "-c", (char *)comando, NULL};
+        execvp(argv[0], argv);
+        perror("Error al ejecutar el comando");
+        exit(EXIT_FAILURE);
+    } else if (pid > 0) {
+        // Proceso padre espera
+        waitpid(pid, NULL, 0);
+        printf("Comando ejecutado: %s\n", comando);
+    } else {
+        registrar_error("Error al ejecutar comando genérico");
+    }
+}
+
+//------------------------------------------------------------------------------//
+// Función para registrar inicio y cierre de sesión
+void registrar_sesion(const char *usuario, const char *accion) {
+    char log_path[PATH_MAX] = "usuario_horarios_log";
+    FILE *archivo = fopen(log_path, "a");
+    if (archivo == NULL) {
+        registrar_error("Error al abrir usuario_horarios_log");
+        return;
+    }
+
+    char timestamp[64];
+    obtener_timestamp(timestamp, sizeof(timestamp));
+
+    fprintf(archivo, "%s: Usuario '%s' %s sesión\n", timestamp, usuario, accion);
+    fclose(archivo);
+}
+
+//------------------------------------------------------------------------------//
+// Función para transferencias por SCP o FTP
+void transferencia_archivo(const char *origen, const char *destino, const char *metodo) {
+    char log_path[PATH_MAX] = "Shell_transferencias.log";
+    FILE *archivo = fopen(log_path, "a");
+    if (archivo == NULL) {
+        registrar_error("Error al abrir Shell_transferencias.log");
+        return;
+    }
+
+    char timestamp[64];
+    obtener_timestamp(timestamp, sizeof(timestamp));
+
+    if (strcmp(metodo, "scp") == 0 || strcmp(metodo, "ftp") == 0) {
+        fprintf(archivo, "%s: Transferencia iniciada de '%s' a '%s' usando %s\n", timestamp, origen, destino, metodo);
+        fclose(archivo);
+        ejecutar_comando(metodo);  // Ejemplo para delegar en herramientas como SCP
+    } else {
+        fprintf(archivo, "%s: Método de transferencia no soportado: '%s'\n", timestamp, metodo);
+        fclose(archivo);
+    }
+}
+
 
 //-----------------------------------------------------------------------------------//
 // Función principal del loop de la shell
@@ -506,6 +589,50 @@ if (strcmp(args[0], "contraseña") == 0) {
     cambiar_contrasena();
     continue;
 }
+// Llamada a función para gestionar demonios
+if (strcmp(args[0], "gestionar_demonio") == 0) {
+    if (args[1] == NULL || args[2] == NULL) {
+        printf("Uso: gestionar_demonio <nombre_demonio> <accion>\n");
+    } else {
+        registrar_historial(args[0]);
+        gestionar_demonio(args[1], args[2]); // args[1] es el nombre del demonio, args[2] es la acción
+    }
+    continue;
+}
+
+// Llamada a función para ejecutar comandos genéricos
+if (strcmp(args[0], "ejecutar") == 0) {
+    if (args[1] == NULL) {
+        printf("Uso: ejecutar <comando>\n");
+    } else {
+        registrar_historial(args[0]);
+        ejecutar_comando(args[1]); // args[1] es el comando a ejecutar
+    }
+    continue;
+}
+
+// Llamada a función para registrar inicio o cierre de sesión
+if (strcmp(args[0], "sesion") == 0) {
+    if (args[1] == NULL || args[2] == NULL) {
+        printf("Uso: sesion <usuario> <accion>\n");
+    } else {
+        registrar_historial(args[0]);
+        registrar_sesion(args[1], args[2]); // args[1] es el usuario, args[2] es la acción (iniciar o cerrar)
+    }
+    continue;
+}
+
+// Llamada a función para realizar transferencia por SCP o FTP
+if (strcmp(args[0], "transferencia") == 0) {
+    if (args[1] == NULL || args[2] == NULL || args[3] == NULL) {
+        printf("Uso: transferencia <origen> <destino> <metodo>\n");
+    } else {
+        registrar_historial(args[0]);
+        transferencia_archivo(args[1], args[2], args[3]); // args[1]: origen, args[2]: destino, args[3]: método (scp o ftp)
+    }
+    continue;
+}
+
 
 //llamada a funcion para crear usuario
  

@@ -1,16 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <limits.h>
-#include <unistd.h>
-#include <dirent.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
+#include <limits.h> 
+#include <unistd.h> //da funciones que interactuan con el lfs como el fork() para crear nuevos procesos
+#include <dirent.h> //da la funcion de listar y tocar directorios, como: opendir() para abrir un directorio y readdir() para leer los nombres de los archivos en un directorio
+#include <sys/types.h> //ayuda a definir tipos de datos del sistema, como pid_t() para identificar procesos y mode_t() para permisos de archivos
+#include <sys/stat.h> //chmod 
+#include <sys/wait.h>// trae las funciones para esperar a los procesos hijos, funciones como wait() y waitpid()
 #include <fcntl.h> // Para operaciones con archivos
 #include <pwd.h> //para funciones que accedan a informacion del usuario, en este caso, las contrasegnas
 #include <grp.h> //lo mismo que pwd pero con grupos
-#include <errno.h>
+#include <errno.h> //esta cabecera da mensajes de error al usuario 
 #include <time.h> // Para timestamps
 
 // Tamano maximo para los comdos
@@ -31,11 +31,11 @@ typedef struct {
 
 // Funcion para obtener el timestamp actual
 void obtener_timestamp(char *buffer, size_t size) {
-    time_t now = time(NULL);
-    struct tm *t = localtime(&now);
+    time_t now = time(NULL); // se obtiene el tiempo actual
+    struct tm *t = localtime(&now); //struct tm es una estructura que representa la fecha y la hora desglosada en sus componentes individuales
     if (t != NULL) {
-        strftime(buffer, size, "%Y-%m-%d %H:%M:%S", t);
-    } else {
+        strftime(buffer, size, "%Y-%m-%d %H:%M:%S", t);         //formatea la fecha y hora en el buffer
+    } else { //mensaje de error
         snprintf(buffer, size, "Timestamp no disponible");
     }
 }
@@ -51,13 +51,13 @@ void registrar_historial(const char *comando) {
     char timestamp[64];
     obtener_timestamp(timestamp, sizeof(timestamp));
 
-    fprintf(archivo, "%s: %s\n", timestamp, comando);
+    fprintf(archivo, "%s: %s\n", timestamp, comando); //se mete el timestamp que se consiguio con la funcion anterior
     fclose(archivo);
 }
 
 // Funcion para registrar errores
 void registrar_error(const char *mensaje) {
-    FILE *archivo = fopen(ERROR_LOG_FILE, "a");
+    FILE *archivo = fopen(ERROR_LOG_FILE, "a"); //se crea puntero que apunta al archivo del error_log_file
     if (archivo == NULL) {
         perror("Error al abrir sistema_error.log");
         return;
@@ -66,8 +66,8 @@ void registrar_error(const char *mensaje) {
     char timestamp[64];
     obtener_timestamp(timestamp, sizeof(timestamp));
     perror(mensaje);
-    fprintf(archivo, "%s: ERROR: %s\n", timestamp, mensaje);
-    fclose(archivo);
+    fprintf(archivo, "%s: ERROR: %s\n", timestamp, mensaje);  //se le informa al usuario
+    fclose(archivo);  
 }
 
 // Función para dividir el comando en argumentos
@@ -75,8 +75,8 @@ void parse_command(char *input, char **args) {
     char *token;
     int i = 0;
 
-    // Dividir el input por espacios
-    token = strtok(input, " \n");
+    // Dividir el input por espacios (gracias strtok tqm)
+    token = strtok(input, " \n"); 
     while (token != NULL) {
         args[i++] = token;
         token = strtok(NULL, " \n");
@@ -85,18 +85,19 @@ void parse_command(char *input, char **args) {
 }
 
 //------------------------------------------------------------------------------//
-// Función para copiar archivoso directorios
 void copiar_archivo(const char *origen, const char *destino) {
     int src_fd, dest_fd;
     char buffer[BUFFER_SIZE];
     ssize_t bytes_read, bytes_written;
 
+    // se abre el archivo de origen en solo lectura
     src_fd = open(origen, O_RDONLY);
     if (src_fd < 0) {
         registrar_error("Error al abrir el archivo de origen");
         return;
     }
 
+    // se abre el archivo de destino en modo escritura, crea el archivo si no existe, y trunca el archivo si ya existe
     dest_fd = open(destino, O_WRONLY | O_CREAT | O_TRUNC, 0644);
     if (dest_fd < 0) {
         registrar_error("Error al crear el archivo de destino");
@@ -104,6 +105,7 @@ void copiar_archivo(const char *origen, const char *destino) {
         return;
     }
 
+    // se lee del archivo origen y se escribe en el archivo de destino en bloques de tamaño BUFFER_SIZE
     while ((bytes_read = read(src_fd, buffer, BUFFER_SIZE)) > 0) {
         bytes_written = write(dest_fd, buffer, bytes_read);
         if (bytes_written != bytes_read) {
@@ -114,15 +116,19 @@ void copiar_archivo(const char *origen, const char *destino) {
         }
     }
 
+    // Verifica si hubo un error al leer el archivo de origen
     if (bytes_read < 0) {
         registrar_error("Error al leer el archivo de origen");
     }
 
+    // Cierra los archivos de origen y destino
     close(src_fd);
     close(dest_fd);
 
+    // Imprime un mensaje indicando que el archivo ha sido copiado
     printf("Archivo copiado de '%s' a '%s'.\n", origen, destino);
 }
+
 
 // Función para copiar un directorio de forma recursiva
 void copiar_directorio(const char *origen, const char *destino) {
@@ -132,59 +138,73 @@ void copiar_directorio(const char *origen, const char *destino) {
     char src_path[PATH_MAX];
     char dest_path[PATH_MAX];
 
+    // Crea el directorio de destino si no existe, tira error si no se pudo
     if (mkdir(destino, 0755) < 0 && errno != EEXIST) {
         registrar_error("Error al crear el directorio de destino");
         return;
     }
 
+    // Abre el directorio de origen
     dir = opendir(origen);
     if (dir == NULL) {
         registrar_error("Error al abrir el directorio de origen");
         return;
     }
 
+    // se lee las entradas del directorio de origen
     while ((entry = readdir(dir)) != NULL) {
+        // Ignora las entradas "." y ".."
         if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
             continue;
         }
 
+        // Construye las rutas completas de origen y destino
         snprintf(src_path, sizeof(src_path), "%s/%s", origen, entry->d_name);
         snprintf(dest_path, sizeof(dest_path), "%s/%s", destino, entry->d_name);
 
+        // Obtiene información sobre la entrada actual
         if (stat(src_path, &statbuf) == 0) {
             if (S_ISDIR(statbuf.st_mode)) {
-                // Es un directorio: copiar recursivamente
+                // Si es un directorio, copiar recursivamente
                 copiar_directorio(src_path, dest_path);
             } else if (S_ISREG(statbuf.st_mode)) {
-                // Es un archivo: copiar
+                // Si es un archivo, copiar
                 copiar_archivo(src_path, dest_path);
             }
         }
     }
 
+    // Cierra el directorio de origen
     closedir(dir);
+
+    // Imprime un mensaje indicando que el directorio ha sido copiado
     printf("Directorio copiado de '%s' a '%s'.\n", origen, destino);
 }
+
 
 // Función para decidir si se copia un archvo o un directorio
 void copiar(const char *origen, const char *destino) {
     struct stat statbuf;
 
+    // Obtiene información sobre el origen
     if (stat(origen, &statbuf) < 0) {
         registrar_error("Error al obtener información del origen");
         return;
     }
 
+    // Verifica si el origen es un directorio
     if (S_ISDIR(statbuf.st_mode)) {
-        // Es un directorio
+        // Es un directorio: copiar recursivamente
         copiar_directorio(origen, destino);
     } else if (S_ISREG(statbuf.st_mode)) {
-        // Es un archivo
+        // Es un archivo: copiar
         copiar_archivo(origen, destino);
     } else {
+        // El origen no es un archivo ni un directorio válido
         printf("El origen '%s' no es un archivo ni un directorio válido.\n", origen);
     }
 }
+
 //---------------------------------------------------------------------------------------//
 //Funcion de ir
 void cambiar_directorio(const char *ruta) {
@@ -211,8 +231,10 @@ void mover(const char *origen, const char *destino) {
     // Verificar si el destino es un directorio
     if (stat(destino, &statbuf) == 0 && S_ISDIR(statbuf.st_mode)) {
         char nuevo_destino[PATH_MAX];
+        // Construir la nueva ruta de destino
         snprintf(nuevo_destino, sizeof(nuevo_destino), "%s/%s", destino, strrchr(origen, '/') ? strrchr(origen, '/') + 1 : origen);
 
+        // Mover el archivo o directorio al nuevo destino
         if (rename(origen, nuevo_destino) == 0) {
             printf("'%s' se ha movido a '%s' correctamente.\n", origen, nuevo_destino);
         } else {
@@ -227,6 +249,7 @@ void mover(const char *origen, const char *destino) {
         }
     }
 }
+
 //--------------------------------------------------------------------------------------//
 //FUncion para renombrar archivos
 void renombrar(const char *origen, const char *nuevo_nombre) {
@@ -265,15 +288,32 @@ void creardir(const char *nombre_directorio) {
     if (mkdir(nombre_directorio, 0755) == 0) {
         printf("Directorio '%s' creado exitosamente.\n", nombre_directorio);
     } else {
-        registrar_error("Error al crear el directorio");
+        // Verificar el tipo de error
+        if (errno == EEXIST) {
+            printf("Error: El directorio '%s' ya existe.\n", nombre_directorio);
+        } else {
+            perror("Error al crear el directorio");
+        }
     }
 }
 
 //-----------------------------------------------------------------------------------//
+//Funcion pwd
+void mostrar_directorio_actual() {
+    char directorio_actual[PATH_MAX];
+
+    // Obtener el directorio actual
+    if (getcwd(directorio_actual, sizeof(directorio_actual)) != NULL) {
+        printf("Directorio actual: %s\n", directorio_actual);
+    } else {
+        perror("Error al obtener el directorio actual");
+    }
+}
+//----------------------------------------------------------------------------------//
 //Funcion para cambiar de directorio, cd
 void ir(const char *ruta) {
-    // Intentar cambiar el directorio
-    if (chdir(ruta) == 0) {
+    // Intentar cambiar el dire ctorio
+    if (chdir(ruta) == 0) { //devuelve cero si en efecto, se cambió
         printf("Directorio cambiado a '%s'\n", ruta);
     } else {
         registrar_error("Error al cambiar de directorio");
@@ -322,11 +362,12 @@ void propietario(const char *usuario, const char *grupo, const char *archivo) {
         printf("Propietario de '%s' cambiado a usuario: '%s', grupo: '%s'\n",
                archivo, usuario, grupo ? grupo : "(sin cambios)");
     } else {
-        registrar_error("Error al cambiar propietario");
+        printf("Error al cambiar propietario del archivo '%s': %s\n", archivo, strerror(errno));
     }
 }
+
 //----------------------------------------------------------------------------------//
-//Funcion para cambiar contrasena
+//Funcion para cambiar contrasena, solo disponible con usuarios con permisos de root
 void cambiar_contrasena() {
     const char *usuario = getenv("USER"); // Obtener el nombre del usuario actual
     if (usuario == NULL) {
@@ -338,10 +379,10 @@ void cambiar_contrasena() {
 
     // Crear un comando para llamar a 'passwd' con el usuario actual
     char comando[256];
-    snprintf(comando, sizeof(comando), "passwd %s", usuario);
+    snprintf(comando, sizeof(comando), "passwd %s", usuario); //se mete dentro de la cadena comando "passwd 'juan'" por ejemplo
 
     // Ejecutar el comando
-    int resultado = system(comando);
+    int resultado = system(comando); //se llama la funcion de cambiar contrasena del sistema
     if (resultado == 0) {
         printf("Contrasena cambiada exitosamente.\n");
     } else {
@@ -349,7 +390,7 @@ void cambiar_contrasena() {
     }
 }
 //----------------------------------------------------------------------------------//
-//Funcion para agregar usuario con su ip y horario laboral
+//Funcion para agregar usuario con su ip y horario laboral, solo disponible para usuarios con permisos de root
 void agregar_usuario(const char *nombre, const char *horario, const char *ips) {
     FILE *archivo;
     char comando[256];
@@ -393,7 +434,7 @@ void levantar_demonio(const char *nombre_demonio, const char *ruta_binario) {
 
     pid_t pid = fork();
     if (pid == 0) {
-        // Proceso hijo se convierte en demonio
+        // Proceso hijo se convierte en demonio, tira error si no se puede
         if (setsid() == -1) {
             perror("Error al crear sesión de demonio");
             exit(EXIT_FAILURE);
@@ -425,12 +466,14 @@ void levantar_demonio(const char *nombre_demonio, const char *ruta_binario) {
     }
 }
 
+//como dice la funcion, con esta se apagan demonios que estan encendidos
 void apagar_demonio(const char *nombre_demonio) {
     printf("Intentando detener el demonio '%s'\n", nombre_demonio);
 
     char pid_path[128];
     snprintf(pid_path, sizeof(pid_path), "/var/run/%s.pid", nombre_demonio);
 
+    // Abrir el archivo PID para leer el PID del demonio
     FILE *pid_file = fopen(pid_path, "r");
     if (pid_file == NULL) {
         perror("Error al leer el archivo PID");
@@ -438,6 +481,7 @@ void apagar_demonio(const char *nombre_demonio) {
     }
 
     pid_t pid;
+    // Leer el PID del archivo
     if (fscanf(pid_file, "%d", &pid) != 1) {
         perror("Error al leer PID del archivo");
         fclose(pid_file);
@@ -445,6 +489,7 @@ void apagar_demonio(const char *nombre_demonio) {
     }
     fclose(pid_file);
 
+    // Enviar la señal SIGTERM al proceso del demonio
     if (kill(pid, SIGTERM) == 0) {
         printf("Demonio '%s' detenido con éxito\n", nombre_demonio);
         remove(pid_path); // Eliminar el archivo PID
@@ -455,19 +500,20 @@ void apagar_demonio(const char *nombre_demonio) {
 
 
 
+
 //------------------------------------------------------------------------------//
 // Función para ejecutar comandos genéricos
 void ejecutar_comando(const char *comando) {
     pid_t pid = fork();
     if (pid == 0) {
         // Proceso hijo para ejecutar el comando
-        char *argv[] = {"/bin/sh", "-c", (char *)comando, NULL};
-        execvp(argv[0], argv);
+        char *argv[] = {"/bin/sh", "-c", (char *)comando, NULL}; //crea un array de punteros a caracteres argv
+        execvp(argv[0], argv); //reemplaza el proceso hijo con un nuevo programa
         perror("Error al ejecutar el comando");
         exit(EXIT_FAILURE);
     } else if (pid > 0) {
         // Proceso padre espera
-        waitpid(pid, NULL, 0);
+        waitpid(pid, NULL, 0); //esto se ejecuta en el proceso padre y espera a que el proceso hijo termine
         printf("Comando ejecutado: %s\n", comando);
     } else {
         registrar_error("Error al ejecutar comando genérico");
@@ -492,7 +538,7 @@ void registrar_sesion(const char *usuario, const char *accion) {
 }
 
 //------------------------------------------------------------------------------//
-// Función para transferencias por SCP o FTP
+//Funcion de transferencia de archivo con SCP o FTP
 void transferencia_archivo(const char *origen, const char *destino, const char *metodo) {
     char log_path[PATH_MAX] = "Shell_transferencias.log";
     FILE *archivo = fopen(log_path, "a");
@@ -504,11 +550,15 @@ void transferencia_archivo(const char *origen, const char *destino, const char *
     char timestamp[64];
     obtener_timestamp(timestamp, sizeof(timestamp));
 
+    // Verificar si el método es soportado (SCP o FTP)
     if (strcmp(metodo, "scp") == 0 || strcmp(metodo, "ftp") == 0) {
+        // Registrar la transferencia en el archivo de log
         fprintf(archivo, "%s: Transferencia iniciada de '%s' a '%s' usando %s\n", timestamp, origen, destino, metodo);
         fclose(archivo);
+        // Ejecutar el comando de transferencia
         ejecutar_comando(metodo);  // Ejemplo para delegar en herramientas como SCP
     } else {
+        // Registrar el error en el archivo de log si el método no es soportado
         fprintf(archivo, "%s: Método de transferencia no soportado: '%s'\n", timestamp, metodo);
         fclose(archivo);
     }
@@ -620,13 +670,16 @@ if (strcmp(args[0], "permisos") == 0) {
 //Lamada a funcion para cambiar propietario/s
 if (strcmp(args[0], "propietario") == 0) {
     if (args[1] == NULL || args[2] == NULL || args[3] == NULL) {
-        printf("Uso: propietario <usuario> <grupo> <archivo>\n");
+        printf("Uso: propietario <usuario> <grupo> <archivo(s)>\n");
     } else {
         registrar_historial(args[0]);
-        propietario(args[1], args[2], args[3]);
+        for (int i = 3; args[i] != NULL; i++) { // Iterar sobre los archivos
+            propietario(args[1], args[2], args[i]);
+        }
     }
     continue;
 }
+
 
 // Llamada a funcion para cambiar la contrasena
 if (strcmp(args[0], "contraseña") == 0) {
@@ -737,6 +790,11 @@ if (strcmp(args[0], "vim") == 0) {
     continue;
 }
 
+//llamada al pwd
+if (strcmp(args[0], "pwd") == 0) {
+    mostrar_directorio_actual();
+    continue;
+}
 
 
 
@@ -755,4 +813,3 @@ int main() {
     shell_loop();
     return 0;
 }
-

@@ -86,6 +86,7 @@ void parse_command(char *input, char **args) {
     args[i] = NULL; // Terminar la lista de argumentos
 }
 
+
 //------------------------------------------------------------------------------//
 void copiar_archivo(const char *origen, const char *destino) {
     int src_fd, dest_fd;
@@ -547,7 +548,7 @@ void registrar_sesion(const char *usuario, const char *accion) {
 //------------------------------------------------------------------------------//
 //Funcion de transferencia de archivo con SCP o FTP
 void transferencia_archivo(const char *origen, const char *destino, const char *metodo) {
-    char log_path[PATH_MAX] = "Shell_transferencias.log";
+    const char *log_path = "/home/Shell_transferencias.log"; // Ruta fija del archivo de log
     FILE *archivo = fopen(log_path, "a");
     if (archivo == NULL) {
         registrar_error("Error al abrir Shell_transferencias.log");
@@ -557,19 +558,25 @@ void transferencia_archivo(const char *origen, const char *destino, const char *
     char timestamp[64];
     obtener_timestamp(timestamp, sizeof(timestamp));
 
-    // Verificar si el método es soportado (SCP o FTP)
-    if (strcmp(metodo, "scp") == 0 || strcmp(metodo, "ftp") == 0) {
+    // Verificar si el método es SCP
+    if (strcmp(metodo, "scp") == 0) {
         // Registrar la transferencia en el archivo de log
-        fprintf(archivo, "%s: Transferencia iniciada de '%s' a '%s' usando %s\n", timestamp, origen, destino, metodo);
+        fprintf(archivo, "%s: Transferencia iniciada de '%s' a '%s' usando SCP\n", timestamp, origen, destino);
         fclose(archivo);
-        // Ejecutar el comando de transferencia
-        ejecutar_comando(metodo);  // Ejemplo para delegar en herramientas como SCP
+
+        // Construir el comando SCP
+        char comando[PATH_MAX];
+        snprintf(comando, sizeof(comando), "scp %s %s", origen, destino);
+
+        // Ejecutar el comando SCP
+        ejecutar_comando(comando);
     } else {
-        // Registrar el error en el archivo de log si el método no es soportado
+        // Registrar el error si el método no es soportado
         fprintf(archivo, "%s: Método de transferencia no soportado: '%s'\n", timestamp, metodo);
         fclose(archivo);
     }
 }
+
 
 
 //-----------------------------------------------------------------------------------//

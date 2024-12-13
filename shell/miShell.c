@@ -507,18 +507,23 @@ void ejecutar_comando(const char *comando) {
     pid_t pid = fork();
     if (pid == 0) {
         // Proceso hijo para ejecutar el comando
-        char *argv[] = {"/bin/sh", "-c", (char *)comando, NULL}; //crea un array de punteros a caracteres argv
-        execvp(argv[0], argv); //reemplaza el proceso hijo con un nuevo programa
+        char *argv[] = {"/bin/sh", "-c", (char *)comando, NULL};
+
+        // Redirigir stdin, stdout y stderr a /dev/null si es necesario
+        freopen("/dev/null", "r", stdin);  // Redirigir entrada estándar
+        execvp(argv[0], argv);
+
         perror("Error al ejecutar el comando");
         exit(EXIT_FAILURE);
     } else if (pid > 0) {
         // Proceso padre espera
-        waitpid(pid, NULL, 0); //esto se ejecuta en el proceso padre y espera a que el proceso hijo termine
+        waitpid(pid, NULL, 0);
         printf("Comando ejecutado: %s\n", comando);
     } else {
         registrar_error("Error al ejecutar comando genérico");
     }
 }
+
 
 //------------------------------------------------------------------------------//
 // Función para registrar inicio y cierre de sesión
@@ -802,14 +807,29 @@ if (strcmp(args[0], "pwd") == 0) {
 }
 
 int main() {
-    // Iniciar la shell
+    // Obtener el nombre del usuario actual
+    const char *usuario = getenv("USER");
+    if (usuario == NULL) {
+        usuario = "desconocido"; // Nombre genérico si no se puede obtener el usuario
+    }
+
+    // Registrar inicio de sesión
+    registrar_sesion(usuario, "iniciar");
+
+    // Iniciar la shell personalizada
     printf("Bienvenido a mi_shell. Escribe 'salir' para terminar.\n");
+
     // Crear el directorio para los logs de error si no existe
     struct stat st;
     if (stat("/var/log/shell", &st) == -1) {
         mkdir("/var/log/shell", 0755);
     }
 
+    // Ejecutar el loop principal de la shell
     shell_loop();
+
+    // Registrar cierre de sesión
+    registrar_sesion(usuario, "cerrar");
+
     return 0;
 }

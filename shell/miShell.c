@@ -42,18 +42,20 @@ void obtener_timestamp(char *buffer, size_t size) {
 
 // Funcion para registrar en el historial
 void registrar_historial(const char *comando) {
-    FILE *archivo = fopen(HISTORIAL_FILE, "a");
+    const char *log_path = "/home/historial.log"; // Ruta fija para el archivo de log
+    FILE *archivo = fopen(log_path, "a");
     if (archivo == NULL) {
-        perror("Error al abrir historial.log");
+        perror("Error al abrir /home/historial.log");
         return;
     }
 
     char timestamp[64];
     obtener_timestamp(timestamp, sizeof(timestamp));
 
-    fprintf(archivo, "%s: %s\n", timestamp, comando); //se mete el timestamp que se consiguio con la funcion anterior
+    fprintf(archivo, "%s: %s\n", timestamp, comando);
     fclose(archivo);
 }
+
 
 // Funcion para registrar errores
 void registrar_error(const char *mensaje) {

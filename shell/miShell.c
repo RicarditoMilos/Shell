@@ -511,8 +511,8 @@ void ejecutar_comando(const char *comando) {
         // Proceso hijo para ejecutar el comando
         char *argv[] = {"/bin/sh", "-c", (char *)comando, NULL};
 
-        // Redirigir stdin, stdout y stderr a /dev/null si es necesario
-        freopen("/dev/null", "r", stdin);  // Redirigir entrada estándar
+        // No redirigir stdin si el comando requiere entrada estándar
+        // Mantener stdout y stderr para permitir interacción normal
         execvp(argv[0], argv);
 
         perror("Error al ejecutar el comando");
